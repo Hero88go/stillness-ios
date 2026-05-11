@@ -1,4 +1,4 @@
-workflows:
+﻿workflows:
   ios-workflow:
     name: Stillness iOS Build
     max_build_duration: 60
@@ -7,10 +7,8 @@ workflows:
       app_store_connect: Codemagic2
     environment:
       ios_signing:
-        provisioning_profiles:
-          - stillness-profile
-        certificates:
-          - stillness-distribution
+        distribution_type: app_store
+        bundle_identifier: com.geekmagnetinc.stillness
       vars:
         XCODE_PROJECT: "ios/App/App.xcodeproj"
         XCODE_SCHEME: "App"
@@ -23,11 +21,6 @@ workflows:
         script: |
           npm install
           npx cap sync ios
-      - name: Set up signing from uploaded cert + profile
-        script: |
-          keychain initialize
-          keychain add-certificates
-          xcode-project use-profiles
       - name: Auto-increment build number
         script: |
           cd "$CM_BUILD_DIR/ios/App"
