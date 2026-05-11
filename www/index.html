@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>STILLNESS — Track the Drift</title>
+<meta name="description" content="A glowing dot drifts. Keep your finger on it. How long can you hold steady?">
+<meta name="theme-color" content="#05070d">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,200;9..144,300;9..144,500&family=Hanken+Grotesk:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+:root {
+  --bg:#05070d; --bg2:#080b15;
+  --text:#e6f0f5; --text-dim:#7a8895; --text-muted:#3d4753;
+  --accent:#5fd4cf; --accent-glow:rgba(95,212,207,0.35);
+  --gold:#c9a24d; --red:#d45f5f; --green:#5fd47a;
+}
+html, body {
+  width:100%; height:100%; overflow:hidden;
+  background:var(--bg); color:var(--text);
+  font-family:'Hanken Grotesk',-apple-system,sans-serif;
+  -webkit-user-select:none; user-select:none;
+  touch-action:none; -webkit-tap-highlight-color:transparent;
+  overscroll-behavior:none;
+}
+canvas { position:fixed; inset:0; width:100%; height:100%; touch-action:none; }
+.screen {
+  position:fixed; inset:0; z-index:10;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  padding:env(safe-area-inset-top) 24px env(safe-area-inset-bottom);
+  opacity:0; pointer-events:none; transition:opacity 0.45s ease;
+  background:radial-gradient(ellipse at center, rgba(5,7,13,0.65), rgba(5,7,13,0.95));
+}
+.screen.active { opacity:1; pointer-events:auto; }
+.eyebrow {
+  font-size:11px; font-weight:500; letter-spacing:0.28em;
+  color:var(--accent); text-transform:uppercase; margin-bottom:14px;
+}
+.title {
+  font-family:'Fraunces',serif; font-size:clamp(54px,14vw,108px);
+  font-weight:200; letter-spacing:0.12em; line-height:0.95;
+  background:linear-gradient(180deg,var(--text) 30%,var(--text-dim) 100%);
+  -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+  margin-bottom:18px;
+}
+.sub {
+  font-size:15px; color:var(--text-dim); max-width:340px; text-align:center;
+  line-height:1.5; margin-bottom:40px;
+}
+.cta {
+  font-family:'Hanken Grotesk',sans-serif; font-size:13px; font-weight:600;
+  letter-spacing:0.2em; text-transform:uppercase;
+  color:var(--bg); background:var(--accent);
+  border:none; padding:18px 48px; border-radius:999px;
+  cursor:pointer; transition:transform 0.15s, box-shadow 0.2s;
+  box-shadow:0 0 32px var(--accent-glow);
+}
+.cta:active { transform:scale(0.97); }
+.tag-row { display:flex; gap:8px; margin-top:24px; }
+.tag {
+  font-family:'Hanken Grotesk',monospace; font-size:10px;
+  letter-spacing:0.18em; color:var(--text-muted); text-transform:uppercase;
+}
+.tag::before { content:'·'; margin-right:8px; color:var(--text-muted); }
+.tag:first-child::before { display:none; }
+
+#hud {
+  position:fixed; top:0; left:0; right:0; z-index:5;
+  padding:calc(env(safe-area-inset-top) + 14px) 24px 14px;
+  display:flex; justify-content:space-between; align-items:flex-start;
+  pointer-events:none;
+  opacity:0; transition:opacity 0.4s;
+}
+#hud.active { opacity:1; }
+.hud-block { display:flex; flex-direction:column; gap:2px; }
+.hud-label { font-size:9px; letter-spacing:0.22em; color:var(--text-muted); text-transform:uppercase; }
+.hud-val { font-family:'Fraunces',serif; font-size:28px; font-weight:300; color:var(--text); }
+.hud-val.pulse { color:var(--accent); }
+
+.result-stat { display:flex; flex-direction:column; align-items:center; margin-bottom:28px; }
+.result-label { font-size:10px; letter-spacing:0.22em; color:var(--text-muted); text-transform:uppercase; margin-bottom:8px; }
+.result-val { font-family:'Fraunces',serif; font-size:88px; font-weight:200; color:var(--text); line-height:1; }
+.result-unit { font-size:14px; color:var(--text-dim); margin-left:6px; vertical-align:top; }
+.best-row { display:flex; gap:32px; margin-bottom:36px; }
+.best-mini { display:flex; flex-direction:column; align-items:center; gap:4px; }
+.best-mini-val { font-family:'Fraunces',serif; font-size:22px; color:var(--accent); font-weight:300; }
+.best-mini-label { font-size:9px; letter-spacing:0.2em; color:var(--text-muted); text-transform:uppercase; }
+</style>
+</head>
+<body>
+
+<canvas id="canvas"></canvas>
+
+<div id="hud">
+  <div class="hud-block">
+    <div class="hud-label">Holding</div>
+    <div class="hud-val" id="hudTime">0.0s</div>
+  </div>
+  <div class="hud-block" style="text-align:right; align-items:flex-end;">
+    <div class="hud-label">Best</div>
+    <div class="hud-val" id="hudBest">0.0s</div>
+  </div>
+</div>
+
+<div id="intro" class="screen active">
+  <div class="eyebrow">Stillness</div>
+  <h1 class="title">DRIFT</h1>
+  <p class="sub">A dot drifts. Keep your finger on it.<br>The longer you hold, the harder it gets.</p>
+  <button class="cta" id="startBtn">Begin</button>
+  <div class="tag-row">
+    <span class="tag">Touch</span>
+    <span class="tag">No timer</span>
+    <span class="tag">Pure focus</span>
+  </div>
+</div>
+
+<div id="result" class="screen">
+  <div class="eyebrow" id="resultEyebrow">Released</div>
+  <div class="result-stat">
+    <div class="result-label">You held for</div>
+    <div class="result-val"><span id="resultTime">0.0</span><span class="result-unit">s</span></div>
+  </div>
+  <div class="best-row">
+    <div class="best-mini">
+      <div class="best-mini-val" id="resultBest">0.0s</div>
+      <div class="best-mini-label">Personal best</div>
+    </div>
+    <div class="best-mini">
+      <div class="best-mini-val" id="resultLevel">1</div>
+      <div class="best-mini-label">Peak speed</div>
+    </div>
+  </div>
+  <button class="cta" id="againBtn">Try Again</button>
+</div>
+
+<script>
+const c = document.getElementById('canvas');
+const ctx = c.getContext('2d');
+let DPR = Math.min(window.devicePixelRatio || 1, 2);
+let W = 0, H = 0;
+function resize() {
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  W = window.innerWidth; H = window.innerHeight;
+  c.width = W * DPR; c.height = H * DPR;
+  c.style.width = W + 'px'; c.style.height = H + 'px';
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+}
+resize();
+window.addEventListener('resize', resize);
+
+const STATE = {
+  playing:false,
+  start:0,
+  elapsed:0,
+  finger:null,
+  dot:{ x:W/2, y:H/2, vx:0, vy:0, r:34 },
+  trail:[],
+  particles:[],
+  best:Number(localStorage.getItem('stillness_best') || 0),
+  bestSpeed:1,
+  speed:1,
+  flash:0,
+};
+document.getElementById('hudBest').textContent = STATE.best.toFixed(1) + 's';
+
+function rand(a,b){ return a + Math.random()*(b-a); }
+
+function spawnParticle(x,y,col){
+  STATE.particles.push({ x, y, vx:rand(-1.5,1.5), vy:rand(-1.5,1.5), life:1, col });
+}
+
+function updateDot(dt){
+  // Smooth random-walk: target acceleration changes slowly
+  const sp = STATE.speed;
+  STATE.dot.vx += rand(-0.4,0.4) * sp * dt * 60;
+  STATE.dot.vy += rand(-0.4,0.4) * sp * dt * 60;
+  // damp
+  STATE.dot.vx *= 0.93; STATE.dot.vy *= 0.93;
+  // clamp velocity
+  const maxV = 4 * sp;
+  const v = Math.hypot(STATE.dot.vx, STATE.dot.vy);
+  if (v > maxV) { STATE.dot.vx *= maxV/v; STATE.dot.vy *= maxV/v; }
+  STATE.dot.x += STATE.dot.vx;
+  STATE.dot.y += STATE.dot.vy;
+  // bounce off edges with margin
+  const m = 80;
+  if (STATE.dot.x < m) { STATE.dot.x = m; STATE.dot.vx = Math.abs(STATE.dot.vx); }
+  if (STATE.dot.x > W-m) { STATE.dot.x = W-m; STATE.dot.vx = -Math.abs(STATE.dot.vx); }
+  if (STATE.dot.y < m+60) { STATE.dot.y = m+60; STATE.dot.vy = Math.abs(STATE.dot.vy); }
+  if (STATE.dot.y > H-m) { STATE.dot.y = H-m; STATE.dot.vy = -Math.abs(STATE.dot.vy); }
+  // shrink slightly with time
+  STATE.dot.r = Math.max(20, 34 - STATE.elapsed * 0.4);
+  // trail
+  STATE.trail.push({ x:STATE.dot.x, y:STATE.dot.y, life:1 });
+  if (STATE.trail.length > 26) STATE.trail.shift();
+}
+
+function checkHold(){
+  if (!STATE.finger) return false;
+  const d = Math.hypot(STATE.finger.x - STATE.dot.x, STATE.finger.y - STATE.dot.y);
+  return d < STATE.dot.r + 8;
+}
+
+let last = performance.now();
+function loop(now){
+  const dt = Math.min(0.05, (now - last) / 1000);
+  last = now;
+
+  // background
+  ctx.fillStyle = 'rgba(5,7,13,0.32)';
+  ctx.fillRect(0,0,W,H);
+
+  if (STATE.playing) {
+    updateDot(dt);
+    const holding = checkHold();
+    if (!holding && STATE.finger) {
+      gameOver();
+    } else if (STATE.finger) {
+      STATE.elapsed = (now - STATE.start) / 1000;
+      // ramp speed
+      STATE.speed = 1 + STATE.elapsed * 0.08;
+      document.getElementById('hudTime').textContent = STATE.elapsed.toFixed(1) + 's';
+      // emit particles when holding
+      if (Math.random() < 0.5) spawnParticle(STATE.finger.x, STATE.finger.y, '95,212,207');
+    }
+    if (STATE.flash > 0) STATE.flash = Math.max(0, STATE.flash - dt * 3);
+  }
+
+  // trail
+  for (let i = 0; i < STATE.trail.length; i++) {
+    const t = STATE.trail[i];
+    t.life -= dt * 1.6;
+    const a = Math.max(0, t.life) * 0.5;
+    ctx.beginPath();
+    ctx.arc(t.x, t.y, STATE.dot.r * (0.4 + t.life*0.5), 0, Math.PI*2);
+    ctx.fillStyle = `rgba(95,212,207,${a*0.12})`;
+    ctx.fill();
+  }
+  STATE.trail = STATE.trail.filter(t => t.life > 0);
+
+  // particles
+  for (const p of STATE.particles) {
+    p.x += p.vx; p.y += p.vy; p.life -= dt * 1.5;
+    ctx.fillStyle = `rgba(${p.col},${Math.max(0,p.life)*0.7})`;
+    ctx.fillRect(p.x, p.y, 2, 2);
+  }
+  STATE.particles = STATE.particles.filter(p => p.life > 0);
+
+  // dot — outer glow
+  if (STATE.playing) {
+    const holding = checkHold();
+    const col = holding ? '95,212,207' : (STATE.finger ? '212,95,95' : '120,140,160');
+    ctx.beginPath();
+    ctx.arc(STATE.dot.x, STATE.dot.y, STATE.dot.r * 2.6, 0, Math.PI*2);
+    const grad = ctx.createRadialGradient(STATE.dot.x, STATE.dot.y, 0, STATE.dot.x, STATE.dot.y, STATE.dot.r*2.6);
+    grad.addColorStop(0, `rgba(${col},0.45)`);
+    grad.addColorStop(0.5, `rgba(${col},0.12)`);
+    grad.addColorStop(1, `rgba(${col},0)`);
+    ctx.fillStyle = grad; ctx.fill();
+    // dot core
+    ctx.beginPath();
+    ctx.arc(STATE.dot.x, STATE.dot.y, STATE.dot.r, 0, Math.PI*2);
+    ctx.fillStyle = `rgba(${col},0.85)`;
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(STATE.dot.x, STATE.dot.y, STATE.dot.r * 0.55, 0, Math.PI*2);
+    ctx.fillStyle = `rgba(255,255,255,0.6)`;
+    ctx.fill();
+  }
+
+  // finger ring
+  if (STATE.finger && STATE.playing) {
+    ctx.beginPath();
+    ctx.arc(STATE.finger.x, STATE.finger.y, 22, 0, Math.PI*2);
+    ctx.strokeStyle = 'rgba(255,255,255,0.55)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(STATE.finger.x, STATE.finger.y, 4, 0, Math.PI*2);
+    ctx.fillStyle = 'rgba(255,255,255,0.9)';
+    ctx.fill();
+  }
+
+  // flash
+  if (STATE.flash > 0) {
+    ctx.fillStyle = `rgba(212,95,95,${STATE.flash * 0.45})`;
+    ctx.fillRect(0,0,W,H);
+  }
+
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+// Touch handlers
+function getPoint(e){
+  const t = e.touches ? e.touches[0] : e;
+  if (!t) return null;
+  return { x:t.clientX, y:t.clientY };
+}
+function onDown(e){ e.preventDefault(); if (!STATE.playing) return; STATE.finger = getPoint(e); }
+function onMove(e){ e.preventDefault(); if (!STATE.playing) return; STATE.finger = getPoint(e); }
+function onUp(e){ e.preventDefault(); if (!STATE.playing) return; if (STATE.finger) gameOver(); }
+c.addEventListener('touchstart', onDown, { passive:false });
+c.addEventListener('touchmove', onMove, { passive:false });
+c.addEventListener('touchend', onUp, { passive:false });
+c.addEventListener('mousedown', onDown);
+c.addEventListener('mousemove', e => { if (e.buttons) onMove(e); });
+c.addEventListener('mouseup', onUp);
+
+function showScreen(id){
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  if (id) document.getElementById(id).classList.add('active');
+  document.getElementById('hud').classList.toggle('active', id === null);
+}
+
+function startGame(){
+  showScreen(null);
+  STATE.playing = true;
+  STATE.start = performance.now();
+  STATE.elapsed = 0;
+  STATE.speed = 1;
+  STATE.dot.x = W/2; STATE.dot.y = H/2;
+  STATE.dot.vx = rand(-1,1); STATE.dot.vy = rand(-1,1);
+  STATE.dot.r = 34;
+  STATE.finger = null;
+  STATE.trail = [];
+  document.getElementById('hudTime').textContent = '0.0s';
+}
+
+function gameOver(){
+  STATE.playing = false;
+  STATE.flash = 1;
+  if (navigator.vibrate) navigator.vibrate(80);
+  const t = STATE.elapsed;
+  const isBest = t > STATE.best;
+  if (isBest) {
+    STATE.best = t;
+    localStorage.setItem('stillness_best', String(t));
+    document.getElementById('hudBest').textContent = t.toFixed(1) + 's';
+  }
+  document.getElementById('resultTime').textContent = t.toFixed(1);
+  document.getElementById('resultBest').textContent = STATE.best.toFixed(1) + 's';
+  document.getElementById('resultLevel').textContent = '×' + STATE.speed.toFixed(1);
+  document.getElementById('resultEyebrow').textContent = isBest ? 'New Best' : 'Released';
+  setTimeout(() => showScreen('result'), 600);
+}
+
+document.getElementById('startBtn').addEventListener('click', startGame);
+document.getElementById('againBtn').addEventListener('click', startGame);
+</script>
+</body>
+</html>
