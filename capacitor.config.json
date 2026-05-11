@@ -1,0 +1,8 @@
+{
+  "appId": "com.geekmagnetinc.stillness",
+  "appName": "Stillness",
+  "webDir": "www",
+  "ios": {
+    "packageClassList": ["AdMobPlugin", "ICloudSyncPlugin"]
+  }
+}
