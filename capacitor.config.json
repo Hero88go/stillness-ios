@@ -3,6 +3,6 @@
   "appName": "Stillness",
   "webDir": "www",
   "ios": {
-    "packageClassList": ["AdMobPlugin", "ICloudSyncPlugin"]
+    "packageClassList": ["AdMobPlugin", "HapticsPlugin", "ICloudSyncPlugin"]
   }
 }
